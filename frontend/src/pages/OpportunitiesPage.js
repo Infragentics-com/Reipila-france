@@ -5,7 +5,7 @@ import { IntelligenceSheet } from "@/components/workspace/IntelligenceSheet";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Skeleton } from "@/components/ui/skeleton";
 import { OPP_LABEL, convictionColor, money, num } from "@/lib/format";
-import { Boxes, MapPin, TrendingDown } from "lucide-react";
+import { Boxes, MapPin, TrendingDown, TrendingUp } from "lucide-react";
 
 const TYPES = [
   { id: "", l: "Toutes" },
@@ -69,7 +69,20 @@ export default function OpportunitiesPage() {
                     <div className="text-xs font-semibold tabular-nums" style={{ color: o.decote_vs_median_pct > 0 ? "#16A34A" : "#6B7280" }}>{o.decote_vs_median_pct != null ? `${o.decote_vs_median_pct}%` : "—"}</div>
                   </div>
                 </div>
-                <div className="mt-2 text-[11px] text-[var(--ps-muted)]">Prix médian secteur · {o.prix_m2_marche_median ? `${num(o.prix_m2_marche_median)} €/m²` : "—"}{o.surface_bati_m2 ? ` · ${num(o.surface_bati_m2)} m²` : ""}</div>
+                {o.plus_value_potentielle != null && (
+                  <div data-testid="opportunity-plusvalue" className="mt-2 rounded-[10px] border border-[#16A34A]/25 bg-[#16A34A]/8 px-2.5 py-2 flex items-center justify-between">
+                    <div className="flex items-center gap-1.5 text-[11px] font-medium text-[#15803D]"><TrendingUp className="h-3.5 w-3.5" />Plus-value potentielle</div>
+                    <div className="text-right">
+                      <div className="text-sm font-bold tabular-nums text-[#15803D]">{money(o.plus_value_potentielle)}</div>
+                      {o.marge_pct != null && <div className="text-[10px] text-[var(--ps-muted)]">marge {o.marge_pct}%</div>}
+                    </div>
+                  </div>
+                )}
+                <div className="mt-2 text-[11px] text-[var(--ps-muted)] flex flex-wrap gap-x-2">
+                  <span>Travaux estimés {o.cout_travaux_estime != null ? money(o.cout_travaux_estime) : "—"}</span>
+                  <span>· Après travaux {o.valeur_apres_travaux != null ? money(o.valeur_apres_travaux) : "—"}</span>
+                  {o.dpe_classe && <span>· DPE {o.dpe_classe}</span>}
+                </div>
               </button>
             ))}
           </div>

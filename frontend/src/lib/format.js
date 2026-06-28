@@ -53,3 +53,12 @@ export const OPP_LABEL = {
   income_building: "Immeuble de rapport", distressed_seller: "Vendeur en difficulté",
   pm_liquidation: "Liquidation PM", urban_fallow: "Friche urbaine", extension_potential: "Potentiel extension",
 };
+
+// Concrete investor utility of each signal severity (shown as help text/tooltip)
+export const SEVERITY_EXPLAIN = {
+  high_conviction: "Plusieurs signaux forts pointent vers une mise en vente probable à court terme. Utilité : prioriser la prise de contact propriétaire avant la mise sur le marché.",
+  convergence_event: "Au moins 3 sources indépendantes (judiciaire, énergie, marché, foncier) convergent sur la même parcelle. Utilité : la triangulation réduit les faux positifs — c'est le signal le plus fiable pour agir.",
+  market_anomaly: "Le prix au m² s'écarte anormalement de la médiane du secteur (décote). Utilité : repérer une sous-valorisation exploitable (négociation / création de valeur).",
+  new_signal: "Un premier signal vendeur vient d'apparaître. Utilité : mettre la parcelle sous surveillance et attendre une éventuelle convergence.",
+};
+

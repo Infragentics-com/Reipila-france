@@ -1,50 +1,26 @@
 [
   {
-    "content": "Rebranding PropSignal -> reipila",
+    "content": "Bug carte: filtrer parcelles hors 69 (SCI/BODACC) + nettoyer les 5 existantes",
     "status": "completed"
   },
   {
-    "content": "Créer hook use-media-query + adapter IntelligenceDrawer + IntelligenceSheet",
+    "content": "Opportunités: coût travaux, valeur après travaux, plus-value, marge (logique investisseur)",
     "status": "completed"
   },
   {
-    "content": "Créer composants partagés StatTiles + LiveFeed",
+    "content": "Comparables: filtrage IQR + même type + surface ±40% + pré-estimation robuste + décote vérifiée",
     "status": "completed"
   },
   {
-    "content": "Créer Home (workspace 3 colonnes)",
+    "content": "Endpoint /api/news (Google News RSS) par commune + onglet Quartier + news page Marché",
     "status": "completed"
   },
   {
-    "content": "Créer MapPage",
+    "content": "Analyse IA enrichie (logique investisseur) + explications anomalie/convergence",
     "status": "completed"
   },
   {
-    "content": "Créer SignalsPage",
-    "status": "completed"
-  },
-  {
-    "content": "Créer OpportunitiesPage",
-    "status": "completed"
-  },
-  {
-    "content": "Créer PipelinePage",
-    "status": "completed"
-  },
-  {
-    "content": "Créer MarketPage",
-    "status": "completed"
-  },
-  {
-    "content": "Créer SettingsPage",
-    "status": "completed"
-  },
-  {
-    "content": "Vérifier compilation + encodage UTF-8 + screenshots de validation",
-    "status": "completed"
-  },
-  {
-    "content": "Tests E2E via testing_agent_v3 + correction bugs (404 glyphes + z-index recherche)",
-    "status": "completed"
+    "content": "Tests testing_agent (backend+frontend) du fix + nouvelles features",
+    "status": "in_progress"
   }
 ]

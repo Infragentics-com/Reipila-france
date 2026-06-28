@@ -3,7 +3,7 @@ import api from "@/lib/api";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Skeleton } from "@/components/ui/skeleton";
 import { num } from "@/lib/format";
-import { BarChart3, TrendingUp, TrendingDown } from "lucide-react";
+import { BarChart3, TrendingUp, TrendingDown, Newspaper, ExternalLink } from "lucide-react";
 import { ResponsiveContainer, BarChart, Bar, XAxis, Tooltip, Cell } from "recharts";
 
 const LEVELS = [
@@ -16,8 +16,10 @@ const LEVELS = [
 
 export default function MarketPage() {
   const [data, setData] = useState(null);
+  const [news, setNews] = useState(null);
   useEffect(() => {
     api.get("/market").then(({ data }) => setData(data)).catch(() => setData({ communes: [], conviction_levels: {}, signal_breakdown: [] }));
+    api.get("/news", { params: { q: "marché immobilier Lyon prix" } }).then(({ data }) => setNews(data.items || [])).catch(() => setNews([]));
   }, []);
 
   if (!data) {
@@ -122,6 +124,20 @@ export default function MarketPage() {
                   )}
                 </tbody>
               </table>
+            </div>
+          </div>
+          {/* Neighborhood / market news */}
+          <div className="rounded-[18px] bg-white border border-[var(--ps-border)] overflow-hidden" data-testid="market-news">
+            <div className="p-4 border-b border-[var(--ps-border)] text-sm font-semibold flex items-center gap-2"><Newspaper className="h-4 w-4 text-[#6366F1]" />Actualité immobilière · Métropole de Lyon</div>
+            <div className="p-4 grid grid-cols-1 md:grid-cols-2 gap-3">
+              {news === null && [0, 1, 2, 3].map((i) => <Skeleton key={i} data-testid="loading-skeleton" className="h-16 rounded-[12px]" />)}
+              {news && news.length === 0 && <div className="text-xs text-[var(--ps-muted)] col-span-full py-6 text-center">Aucune actualité disponible.</div>}
+              {(news || []).map((n, i) => (
+                <a key={i} href={n.link} target="_blank" rel="noreferrer" data-testid="news-item" className="block rounded-[12px] border border-[var(--ps-border)] bg-[var(--ps-surface-2)] px-3 py-2 hover:border-[#6366F1] hover:shadow-[var(--ps-shadow-soft)] transition-shadow">
+                  <div className="text-[13px] font-medium leading-snug flex items-start gap-1.5">{n.title}<ExternalLink className="h-3 w-3 mt-0.5 shrink-0 text-[var(--ps-subtle)]" /></div>
+                  <div className="text-[11px] text-[var(--ps-muted)] mt-1 font-medium text-[#6366F1]">{n.source || "Source"}</div>
+                </a>
+              ))}
             </div>
           </div>
         </div>

@@ -1,0 +1,85 @@
+{
+  "summary": "Completed comprehensive testing of reipila iteration 2 features: map routing bug fix, investor metrics, robust comparables, severity explanations, and neighborhood news RSS. Backend: 19/19 tests passed (100%). Frontend: All new features verified and working. Real data confirmed: 180 parcelles (down from 185 after filtering off-69 refs), 63 high-conviction signals, 62 opportunities with investor metrics, 14 news items per commune.",
+  
+  "backend_issues": {
+    "critical_bugs": [],
+    "flaky_endpoints": []
+  },
+  
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": [
+      {
+        "component": "Intelligence Sheet",
+        "issue": "Sheet overlay can block clicks on background elements when open",
+        "impact": "Minor UX issue - user must close sheet before clicking other elements",
+        "fix_priority": "LOW",
+        "details": "When Intelligence Sheet is open on Opportunities page, its overlay intercepts pointer events from background opportunity cards. User can close sheet with X button or Escape key. This is standard modal/sheet behavior."
+      }
+    ]
+  },
+  
+  "passed_tests": [
+    "Backend: POST /api/auth/login (demo@reipila.com / demo1234)",
+    "Backend: GET /api/auth/me",
+    "Backend: GET /api/stats/overview (63 new signals, 7 high conviction, 27 convergence events, 180 total parcelles)",
+    "Backend: GET /api/feed (10 items)",
+    "Backend: GET /api/map/parcelles (63 GeoJSON features) - CRITICAL: All parcels have ref starting with '69' AND coordinates within Lyon bbox (lon 4.55-5.25, lat 45.55-45.95). No Paris/Nice parcels found.",
+    "Backend: GET /api/parcelles/{ref} - Robust comparables verified: comparables_stats with n_total=32, n_retenus=29, n_aberrants=3, prix_m2_median=3267, decote=-12.7%. IQR filtering working.",
+    "Backend: GET /api/signals (20 signals)",
+    "Backend: GET /api/opportunities (20 opportunities) - Investor metrics verified: All fields present (cout_travaux_estime, valeur_apres_travaux, plus_value_potentielle, marge_pct, travaux_eur_m2, dpe_classe). 17/20 opportunities have plus_value_potentielle.",
+    "Backend: GET /api/pipeline (CRUD operations: GET, POST, PATCH, DELETE)",
+    "Backend: GET /api/market (2 communes, conviction levels, 12 signal types)",
+    "Backend: GET /api/search (10 results for 'Lyon')",
+    "Backend: GET /api/communes (67 communes)",
+    "Backend: GET /api/ingest/status (180 parcelles, 2 communes ingested)",
+    "Backend: GET /api/ingest/runs (4 runs)",
+    "Backend: GET /api/news?commune=Lyon 7e - NEW endpoint verified: Returns 14 news items with all required fields (title, link, source, published, summary). Google News RSS integration working.",
+    "Backend: POST /api/ai/interpret (Claude 4.5 returned 1464 chars French interpretation with investor economics)",
+    "Frontend: Login flow with demo credentials",
+    "Frontend: Home page 3-column workspace (feed, map, intelligence drawer)",
+    "Frontend: Opportunities page (62 opportunity cards)",
+    "Frontend: Opportunities page - VERIFIED: 55/62 cards show 'Plus-value potentielle' block with investor metrics (7 are terrains without surface data)",
+    "Frontend: Intelligence Sheet opens on opportunity card click",
+    "Frontend: Intelligence Sheet Overview tab - VERIFIED: Severity explanation present with concrete utility text (e.g., 'HIGH CONVICTION — Plusieurs signaux forts pointent vers une mise en vente probable à court terme. Utilité : prioriser la prise de contact propriétaire avant la mise sur le marché.')",
+    "Frontend: Intelligence Sheet Analyse tab - VERIFIED: Investor analysis block present with 'ÉCONOMIE DE L'OPÉRATION' section showing décote, valeur estimée, travaux estimés, valeur après travaux, plus-value potentielle, marge %",
+    "Frontend: Intelligence Sheet Comparables tab - Robust pre-estimation card present for parcels with surface data (terrains show '—' as expected)",
+    "Frontend: Intelligence Sheet Quartier tab - VERIFIED: 14 news items displayed from Google News RSS feed",
+    "Frontend: Market page - VERIFIED: 'Actualité immobilière · Métropole de Lyon' section present with 14 news items from various sources (MoneyVox, PAP, Lyon Pôle Immo, Lyon Capitale, etc.)",
+    "Frontend: Market page conviction distribution bars (Critical: 2, High: 5, Medium: 20, Low: 36, Watch: 117)",
+    "Frontend: Market page signal breakdown chart",
+    "Frontend: Market page communes table (Lyon 7e: 89 parcelles/89 signaux, Lyon 6e: 87 parcelles/87 signaux)",
+    "Frontend: Signals page navigation",
+    "Frontend: Pipeline page navigation",
+    "Frontend: Settings page navigation",
+    "Frontend: Settings page ingestion status (180 parcelles after bug fix)",
+    "Frontend: Home page map canvas visible",
+    "Frontend: Home page feed items visible"
+  ],
+  
+  "test_report_links": [
+    "/app/backend_test.py",
+    "/app/backend_test_output.log",
+    "/root/.emergent/automation_output/20260628_150531/console_20260628_150531.log",
+    "/root/.emergent/automation_output/20260628_150656/console_20260628_150656.log",
+    "/root/.emergent/automation_output/20260628_150818/console_20260628_150818.log",
+    "/root/.emergent/automation_output/20260628_150850/console_20260628_150850.log"
+  ],
+  
+  "success_percentage": {
+    "backend": "100% (19/19 tests passed)",
+    "frontend": "95% (all major features working, 1 minor non-critical UI issue)",
+    "integration": "100% (drawer/sheet, filters, navigation, news RSS all working)",
+    "overall": "98%"
+  },
+  
+  "updated_files": [
+    "/app/backend_test.py"
+  ],
+  
+  "action_item_for_main_agent": "",
+  
+  "should_call_test_agent_after_fix": false,
+  "should_main_agent_test_itself": true
+}

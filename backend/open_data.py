@@ -40,6 +40,43 @@ async def close_client():
         _client = None
 
 
+async def fetch_news(query, limit=14):
+    """Fetch real-estate news via Google News RSS (keyless) for a given query.
+    Returns a list of {title, link, source, published, summary}."""
+    import urllib.parse
+    import re as _re
+    import xml.etree.ElementTree as ET
+    url = ("https://news.google.com/rss/search?q="
+           + urllib.parse.quote(query)
+           + "&hl=fr&gl=FR&ceid=FR:fr")
+    out = []
+    try:
+        c = get_client()
+        r = await c.get(url)
+        if r.status_code != 200:
+            return out
+        root = ET.fromstring(r.text)
+        for item in root.iter("item"):
+            title = (item.findtext("title") or "").strip()
+            link = (item.findtext("link") or "").strip()
+            pub = (item.findtext("pubDate") or "").strip()
+            src_el = item.find("source")
+            source = (src_el.text if src_el is not None and src_el.text else "").strip()
+            desc = item.findtext("description") or ""
+            desc = _re.sub("<[^>]+>", "", desc).strip()
+            desc = _re.sub("\\s+", " ", desc)[:220]
+            if not title or not link:
+                continue
+            out.append({"title": title, "link": link, "published": pub,
+                        "source": source, "summary": desc})
+            if len(out) >= limit:
+                break
+    except Exception:
+        pass
+    return out
+
+
+
 class RateLimiter:
     """Per-host minimum interval between calls (respect documented rate limits)."""
     INTERVALS = {

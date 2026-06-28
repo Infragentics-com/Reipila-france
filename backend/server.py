@@ -1,5 +1,6 @@
 """PropSignal v2 — FastAPI backend (real-estate intelligence OS, Métropole de Lyon)."""
 import os
+import time
 import uuid
 import asyncio
 from datetime import datetime, timezone, timedelta
@@ -215,6 +216,19 @@ async def map_parcelles(
     return {"type": "FeatureCollection", "features": feats}
 
 
+def _percentile(sorted_vals, pct):
+    if not sorted_vals:
+        return None
+    if len(sorted_vals) == 1:
+        return sorted_vals[0]
+    k = (len(sorted_vals) - 1) * (pct / 100.0)
+    f = int(k)
+    c = min(f + 1, len(sorted_vals) - 1)
+    if f == c:
+        return sorted_vals[f]
+    return sorted_vals[f] + (sorted_vals[c] - sorted_vals[f]) * (k - f)
+
+
 # ============================================================ Parcelle detail
 @api.get("/parcelles/{ref}")
 async def parcelle_detail(ref: str, user=Depends(current_user)):
@@ -227,14 +241,50 @@ async def parcelle_detail(ref: str, user=Depends(current_user)):
         sigs.append(dbm.serialize(s))
     log = await dbm.convergence_logs.find_one({"ref_cadastrale": ref})
     geom = await dbm.parcelles_geometries.find_one({"ref_cadastrale": ref})
-    comps = []
+    # --- Robust comparables: same commune + same property type, surface +/-40%,
+    #     IQR outlier removal -> robust pre-estimation + decote vs comparables ---
+    raw = []
     ccur = dbm.parcelles.find({
         "code_insee": p.get("code_insee"), "type_bien": p.get("type_bien"),
-        "dvf_prix_m2": {"$ne": None}, "ref_cadastrale": {"$ne": ref}}).limit(6)
+        "dvf_prix_m2": {"$ne": None}, "ref_cadastrale": {"$ne": ref}}).limit(120)
     async for c in ccur:
-        comps.append({"ref_cadastrale": c["ref_cadastrale"], "dvf_prix_m2": c.get("dvf_prix_m2"),
-                      "dvf_date_derniere_mutation": c.get("dvf_date_derniere_mutation"),
-                      "surface_bati_m2": c.get("surface_bati_m2"), "conviction_score": c.get("conviction_score")})
+        pm = c.get("dvf_prix_m2")
+        if pm and pm > 0:
+            raw.append(c)
+    surf = p.get("surface_bati_m2")
+    pool = raw
+    if surf:
+        lo_s, hi_s = surf * 0.6, surf * 1.4
+        sf = [c for c in raw if c.get("surface_bati_m2") and lo_s <= c["surface_bati_m2"] <= hi_s]
+        if len(sf) >= 4:
+            pool = sf
+    comps_stats = None
+    kept = pool
+    prices = sorted(c["dvf_prix_m2"] for c in pool)
+    if len(prices) >= 4:
+        q1 = _percentile(prices, 25)
+        q3 = _percentile(prices, 75)
+        iqr = q3 - q1
+        lo_b, hi_b = q1 - 1.5 * iqr, q3 + 1.5 * iqr
+        kept = [c for c in pool if lo_b <= c["dvf_prix_m2"] <= hi_b] or pool
+        kp = sorted(c["dvf_prix_m2"] for c in kept)
+        med_c = _percentile(kp, 50)
+        p25_c = _percentile(kp, 25)
+        p75_c = _percentile(kp, 75)
+        cur_pm = p.get("dvf_prix_m2")
+        decote_c = round((1 - cur_pm / med_c) * 100, 1) if (cur_pm and med_c) else None
+        comps_stats = {
+            "n_total": len(pool), "n_retenus": len(kept), "n_aberrants": len(pool) - len(kept),
+            "prix_m2_median": round(med_c), "prix_m2_p25": round(p25_c), "prix_m2_p75": round(p75_c),
+            "pre_estimation_basse": round(p25_c * surf) if surf else None,
+            "pre_estimation_median": round(med_c * surf) if surf else None,
+            "pre_estimation_haute": round(p75_c * surf) if surf else None,
+            "decote_vs_comparables_pct": decote_c,
+        }
+    comps = [{"ref_cadastrale": c["ref_cadastrale"], "dvf_prix_m2": c.get("dvf_prix_m2"),
+              "dvf_date_derniere_mutation": c.get("dvf_date_derniere_mutation"),
+              "surface_bati_m2": c.get("surface_bati_m2"), "conviction_score": c.get("conviction_score")}
+             for c in sorted(kept, key=lambda x: x["dvf_prix_m2"])[:8]]
     acq = await dbm.acquisitions.find_one({"ref_cadastrale": ref})
     return {
         "parcelle": dbm.serialize(p),
@@ -242,9 +292,37 @@ async def parcelle_detail(ref: str, user=Depends(current_user)):
         "convergence_log": dbm.serialize(log),
         "geometry": geom.get("geom") if geom else None,
         "comparables": comps,
+        "comparables_stats": comps_stats,
         "acquisition": dbm.serialize(acq),
         "severity": _severity(p),
     }
+
+
+# ============================================================ Neighborhood news (RSS)
+_NEWS_CACHE = {}  # key -> (timestamp, items)
+_NEWS_TTL = 900   # 15 min
+
+
+@api.get("/news")
+async def news(commune: str = "", q: str = "", user=Depends(current_user)):
+    """Real-estate news for a neighborhood/commune via Google News RSS (keyless)."""
+    key = f"{commune}|{q}"
+    now = time.time()
+    cached = _NEWS_CACHE.get(key)
+    if cached and now - cached[0] < _NEWS_TTL:
+        return {"items": cached[1], "query": cached[2], "cached": True}
+    if q:
+        query = q
+    elif commune:
+        query = f"immobilier {commune}"
+    else:
+        query = "marché immobilier Lyon"
+    items = await od.fetch_news(query)
+    if not items:
+        # fallback to a broader query
+        items = await od.fetch_news("marché immobilier prix " + (commune or "Lyon"))
+    _NEWS_CACHE[key] = (now, items, query)
+    return {"items": items, "query": query, "cached": False}
 
 
 # ============================================================ Live feed
@@ -474,8 +552,9 @@ async def ai_interpret(body: AIIn, user=Depends(current_user)):
     p, log = await _load_for_ai(body.ref_cadastrale)
     conv = {"conviction_score": log.get("conviction_score_final"), "classification": log.get("classification"),
             "recommended_action": log.get("recommended_action"), "steps": log.get("steps", [])}
+    acq = await dbm.acquisitions.find_one({"ref_cadastrale": body.ref_cadastrale})
     try:
-        text = await ai.interpret(p, conv)
+        text = await ai.interpret(p, conv, dbm.serialize(acq) or {})
     except Exception as e:
         raise HTTPException(502, f"IA indisponible: {str(e)[:160]}")
     await dbm.convergence_logs.update_one({"ref_cadastrale": body.ref_cadastrale},

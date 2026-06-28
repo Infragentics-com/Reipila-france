@@ -38,6 +38,23 @@ ARR_CP = {
 _now = lambda: datetime.now(timezone.utc)
 
 
+def _in_lyon(ref, lon, lat):
+    """Validate a parcel truly belongs to Metropole de Lyon (dept 69) AND its
+    coordinates fall inside the Lyon bbox. Prevents off-69 parcels (e.g. a company
+    siege geocoded in Paris/Nice) from polluting the map and analytics."""
+    if not (ref and str(ref).startswith("69")):
+        return False
+    if lon is None or lat is None:
+        return False
+    return 4.55 < float(lon) < 5.25 and 45.55 < float(lat) < 45.95
+
+
+def _travaux_rate(dpe):
+    """Estimated energy-renovation cost (EUR/m2) by DPE class (FR market 2025,
+    full retrofit to a sellable class). Sources: architecteo, lesclesdelabanque."""
+    return {"G": 800, "F": 550, "E": 350, "D": 200}.get(dpe, 150)
+
+
 def dvf_codes_for(code_insee):
     if code_insee == "69123":
         return list(LYON_ARR.keys())
@@ -298,6 +315,8 @@ async def _seed_from_sci(scis, code_insee, commune_nom, pmap, stats):
             continue
         ref = cad["idu"]
         arr = ref[:5]
+        if not _in_lyon(ref, ll[0], ll[1]):
+            continue
         p = pmap.get(ref) or {"ref_cadastrale": ref, "longitude": ll[0], "latitude": ll[1],
                               "code_insee": arr, "commune_nom": LYON_ARR.get(arr, commune_nom)}
         p["_geom"] = cad.get("geometry")
@@ -343,6 +362,8 @@ async def _seed_from_bodacc(annonces, code_insee, commune_nom, cps, pmap, stats)
             continue
         ref = cad["idu"]
         arr = ref[:5]
+        if not _in_lyon(ref, ll[0], ll[1]):
+            continue
         p = pmap.get(ref) or {"ref_cadastrale": ref, "longitude": ll[0], "latitude": ll[1],
                               "code_insee": arr, "commune_nom": LYON_ARR.get(arr, commune_nom)}
         p["_geom"] = cad.get("geometry")
@@ -446,11 +467,29 @@ async def _persist_acquisition(p, conv, market):
     val_med = round(med * surf) if (med and surf) else None
     prix_m2 = p.get("dvf_prix_m2")
     decote = round((1 - prix_m2 / med) * 100, 1) if (prix_m2 and med) else None
+    # --- Investor logic: works, after-works value, potential capital gain ---
+    dpe = p.get("dpe_classe")
+    travaux_m2 = _travaux_rate(dpe) if (dpe in {"E", "F", "G"} or "dpe_renovation" in types) else (
+        _travaux_rate("D") if (p.get("annee_construction") or 9999) < 1990 else 120)
+    cout_travaux = round(travaux_m2 * surf) if surf else None
+    # After full renovation, the asset can be repositioned toward the upper quartile
+    valeur_apres_travaux = round(p75 * surf) if (p75 and surf) else val_haute
+    prix_acquisition_estime = val_med  # realistic current value (median) as acquisition basis
+    plus_value = None
+    marge_pct = None
+    if valeur_apres_travaux and prix_acquisition_estime:
+        cout = prix_acquisition_estime + (cout_travaux or 0)
+        plus_value = round(valeur_apres_travaux - cout)
+        marge_pct = round(plus_value / cout * 100, 1) if cout else None
     doc = {
         "ref_cadastrale": ref, "code_insee": p.get("code_insee"), "commune_nom": p.get("commune_nom"),
         "types_opportunite": types, "prix_m2_marche_median": med, "prix_m2_marche_p25": p25,
+        "prix_m2_marche_p75": p75,
         "decote_vs_median_pct": decote, "valeur_estimee_basse": val_basse, "valeur_estimee_haute": val_haute,
         "valeur_estimee_median": val_med, "surface_bati_m2": surf,
+        "dpe_classe": dpe, "travaux_eur_m2": travaux_m2, "cout_travaux_estime": cout_travaux,
+        "valeur_apres_travaux": valeur_apres_travaux, "prix_acquisition_estime": prix_acquisition_estime,
+        "plus_value_potentielle": plus_value, "marge_pct": marge_pct,
         "score_acquisition": conv["conviction_score"], "conviction_score": conv["conviction_score"],
         "conviction_level": conv["conviction_level"], "longitude": p.get("longitude"), "latitude": p.get("latitude"),
         "type_bien": p.get("type_bien"), "status": "detected", "updated_at": _now(),

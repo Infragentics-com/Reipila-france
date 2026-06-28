@@ -139,7 +139,7 @@ class ReipilaAPITester:
         return success
 
     def test_map_parcelles(self):
-        """Test /api/map/parcelles (GeoJSON)"""
+        """Test /api/map/parcelles (GeoJSON) - CRITICAL: verify map routing bug fix"""
         self.log("=" * 60, "INFO")
         self.log("TESTING MAP ENDPOINTS", "INFO")
         self.log("=" * 60, "INFO")
@@ -155,6 +155,40 @@ class ReipilaAPITester:
         if success:
             features = response.get('features', [])
             self.log(f"   GeoJSON features: {len(features)}", "INFO")
+            
+            # CRITICAL BUG FIX VERIFICATION: All parcels must have ref starting with '69' 
+            # AND coordinates within Lyon bbox (lon 4.55-5.25, lat 45.55-45.95)
+            invalid_refs = []
+            invalid_coords = []
+            for feat in features:
+                props = feat.get('properties', {})
+                ref = props.get('ref_cadastrale', '')
+                lon = props.get('longitude')
+                lat = props.get('latitude')
+                
+                # Check ref starts with '69'
+                if not ref.startswith('69'):
+                    invalid_refs.append(ref)
+                
+                # Check coordinates within Lyon bbox
+                if lon is not None and lat is not None:
+                    if not (4.55 < lon < 5.25 and 45.55 < lat < 45.95):
+                        invalid_coords.append(f"{ref} (lon={lon}, lat={lat})")
+            
+            if invalid_refs:
+                self.log(f"   ❌ BUG: Found {len(invalid_refs)} parcels with ref NOT starting with '69': {invalid_refs[:5]}", "ERROR")
+                self.tests_failed += 1
+                self.failed_tests.append(f"Map routing bug: {len(invalid_refs)} parcels with invalid ref (not starting with 69)")
+            else:
+                self.log(f"   ✅ All parcels have ref starting with '69'", "PASS")
+            
+            if invalid_coords:
+                self.log(f"   ❌ BUG: Found {len(invalid_coords)} parcels with coords OUTSIDE Lyon bbox: {invalid_coords[:3]}", "ERROR")
+                self.tests_failed += 1
+                self.failed_tests.append(f"Map routing bug: {len(invalid_coords)} parcels with coords outside Lyon bbox")
+            else:
+                self.log(f"   ✅ All parcels have coordinates within Lyon bbox (lon 4.55-5.25, lat 45.55-45.95)", "PASS")
+            
             if features and not self.test_parcel_ref:
                 # Store a parcel ref if we don't have one yet
                 self.test_parcel_ref = features[0].get('properties', {}).get('ref_cadastrale')
@@ -162,7 +196,7 @@ class ReipilaAPITester:
         return success
 
     def test_parcelle_detail(self):
-        """Test /api/parcelles/{ref}"""
+        """Test /api/parcelles/{ref} - verify robust comparables with IQR filtering"""
         if not self.test_parcel_ref:
             self.log("⚠️  No parcel ref available, skipping parcelle detail test", "WARN")
             return True
@@ -178,9 +212,27 @@ class ReipilaAPITester:
             parcelle = response.get('parcelle', {})
             signals = response.get('signals', [])
             conv_log = response.get('convergence_log', {})
+            comparables_stats = response.get('comparables_stats')
+            
             self.log(f"   Parcelle: {parcelle.get('commune_nom')} - Score: {parcelle.get('conviction_score')}%", "INFO")
             self.log(f"   Signals: {len(signals)}", "INFO")
             self.log(f"   Convergence log steps: {len(conv_log.get('steps', []))}", "INFO")
+            
+            # NEW: Verify robust comparables stats (IQR filtering)
+            if comparables_stats:
+                self.log(f"   ✅ Comparables stats present", "PASS")
+                required_fields = ['n_total', 'n_retenus', 'n_aberrants', 'prix_m2_median', 
+                                   'prix_m2_p25', 'prix_m2_p75', 'pre_estimation_basse', 
+                                   'pre_estimation_median', 'pre_estimation_haute', 'decote_vs_comparables_pct']
+                missing = [f for f in required_fields if f not in comparables_stats]
+                if missing:
+                    self.log(f"   ⚠️  Missing comparables_stats fields: {missing}", "WARN")
+                else:
+                    self.log(f"   ✅ All comparables_stats fields present", "PASS")
+                    self.log(f"      n_total={comparables_stats['n_total']}, n_retenus={comparables_stats['n_retenus']}, n_aberrants={comparables_stats['n_aberrants']}", "INFO")
+                    self.log(f"      prix_m2_median={comparables_stats['prix_m2_median']}, decote={comparables_stats['decote_vs_comparables_pct']}%", "INFO")
+            else:
+                self.log(f"   ℹ️  No comparables_stats (parcel may be terrain or insufficient data)", "INFO")
         return success
 
     def test_signals(self):
@@ -203,7 +255,7 @@ class ReipilaAPITester:
         return success
 
     def test_opportunities(self):
-        """Test /api/opportunities"""
+        """Test /api/opportunities - verify investor metrics"""
         success, response = self.run_test(
             "GET /api/opportunities",
             "GET",
@@ -215,6 +267,26 @@ class ReipilaAPITester:
         if success:
             opps = response.get('opportunities', [])
             self.log(f"   Opportunities: {len(opps)}", "INFO")
+            
+            # NEW: Verify investor metrics fields
+            if opps:
+                first_opp = opps[0]
+                investor_fields = ['cout_travaux_estime', 'valeur_apres_travaux', 
+                                   'plus_value_potentielle', 'marge_pct', 'travaux_eur_m2', 'dpe_classe']
+                present_fields = [f for f in investor_fields if f in first_opp]
+                self.log(f"   ✅ Investor fields present in opportunities: {present_fields}", "PASS")
+                
+                # Check if at least one opportunity has plus_value_potentielle
+                opps_with_plusvalue = [o for o in opps if o.get('plus_value_potentielle') is not None]
+                self.log(f"   Opportunities with plus_value_potentielle: {len(opps_with_plusvalue)}/{len(opps)}", "INFO")
+                
+                if opps_with_plusvalue:
+                    sample = opps_with_plusvalue[0]
+                    self.log(f"   Sample investor metrics:", "INFO")
+                    self.log(f"      cout_travaux_estime: {sample.get('cout_travaux_estime')}", "INFO")
+                    self.log(f"      valeur_apres_travaux: {sample.get('valeur_apres_travaux')}", "INFO")
+                    self.log(f"      plus_value_potentielle: {sample.get('plus_value_potentielle')}", "INFO")
+                    self.log(f"      marge_pct: {sample.get('marge_pct')}%", "INFO")
         return success
 
     def test_pipeline(self):
@@ -369,6 +441,49 @@ class ReipilaAPITester:
             self.log(f"   Ingestion runs: {len(runs)}", "INFO")
         return success
 
+    def test_news(self):
+        """Test /api/news - NEW neighborhood news endpoint"""
+        self.log("=" * 60, "INFO")
+        self.log("TESTING NEWS ENDPOINT (Google News RSS)", "INFO")
+        self.log("=" * 60, "INFO")
+        
+        # Test with commune parameter
+        success, response = self.run_test(
+            "GET /api/news?commune=Lyon 7e",
+            "GET",
+            "news",
+            200,
+            params={"commune": "Lyon 7e"},
+            return_data=True
+        )
+        if success:
+            items = response.get('items', [])
+            query = response.get('query', '')
+            cached = response.get('cached', False)
+            self.log(f"   News items: {len(items)}", "INFO")
+            self.log(f"   Query: {query}", "INFO")
+            self.log(f"   Cached: {cached}", "INFO")
+            
+            if items:
+                sample = items[0]
+                self.log(f"   Sample news item:", "INFO")
+                self.log(f"      title: {sample.get('title', '')[:60]}...", "INFO")
+                self.log(f"      source: {sample.get('source', '')}", "INFO")
+                self.log(f"      link: {sample.get('link', '')[:60]}...", "INFO")
+                
+                # Verify required fields
+                required_fields = ['title', 'link', 'source', 'published', 'summary']
+                missing = [f for f in required_fields if f not in sample]
+                if missing:
+                    self.log(f"   ⚠️  Missing news fields: {missing}", "WARN")
+                else:
+                    self.log(f"   ✅ All news fields present", "PASS")
+            else:
+                # Note: Google News RSS can intermittently return 0 items (network issue, not code bug)
+                self.log(f"   ⚠️  No news items returned (may be intermittent network issue with Google News RSS)", "WARN")
+        
+        return success
+
     def test_ai_interpret(self):
         """Test /api/ai/interpret (ONLY ONE CALL to save credits)"""
         self.log("=" * 60, "INFO")
@@ -459,6 +574,9 @@ def main():
     tester.test_communes()
     tester.test_ingest_status()
     tester.test_ingest_runs()
+    
+    # News (NEW)
+    tester.test_news()
     
     # AI (only ONE call)
     tester.test_ai_interpret()

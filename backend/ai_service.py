@@ -27,19 +27,34 @@ async def _chat(system, prompt, session):
     return resp if isinstance(resp, str) else str(resp)
 
 
-async def interpret(parcelle, conv):
-    system = ("Tu es un analyste immobilier senior chez reipila (M\u00e9tropole de Lyon). "
-              "Tu es factuel, rigoureux et concis. Tu ne fabriques jamais de donn\u00e9es : "
-              "tu t'appuies UNIQUEMENT sur le log de convergence fourni.")
+async def interpret(parcelle, conv, acquisition=None):
+    system = ("Tu es un analyste en investissement immobilier senior chez reipila (M\u00e9tropole de Lyon). "
+              "Tu es factuel, rigoureux et concis, avec une logique d'investisseur (cr\u00e9ation de valeur, "
+              "d\u00e9cote, co\u00fbt de travaux, plus-value). Tu ne fabriques jamais de donn\u00e9es : tu t'appuies "
+              "UNIQUEMENT sur le log de convergence et les chiffres fournis.")
+    eco = ""
+    a = acquisition or {}
+    if a.get("plus_value_potentielle") is not None or a.get("decote_vs_median_pct") is not None:
+        eco = (
+            "\n\u00c9conomie de l'op\u00e9ration (estimations reipila) :\n"
+            f"- D\u00e9cote vs march\u00e9 : {a.get('decote_vs_median_pct')}%\n"
+            f"- Valeur estim\u00e9e actuelle (m\u00e9diane) : {a.get('prix_acquisition_estime') or a.get('valeur_estimee_median')} \u20ac\n"
+            f"- Co\u00fbt de travaux estim\u00e9 ({a.get('travaux_eur_m2')} \u20ac/m\u00b2, DPE {a.get('dpe_classe')}) : {a.get('cout_travaux_estime')} \u20ac\n"
+            f"- Valeur apr\u00e8s travaux (P75 secteur) : {a.get('valeur_apres_travaux')} \u20ac\n"
+            f"- Plus-value potentielle : {a.get('plus_value_potentielle')} \u20ac (marge {a.get('marge_pct')}%)\n"
+            f"- Types d'opportunit\u00e9 : {', '.join(a.get('types_opportunite') or []) or 'n/d'}\n"
+        )
     prompt = (
         f"Parcelle {parcelle.get('ref_cadastrale')} \u00e0 {parcelle.get('commune_nom')}, "
         f"adresse : {parcelle.get('adresse_ban') or 'n/d'}.\n"
         f"Score de conviction : {conv.get('conviction_score')}% \u2014 {conv.get('classification')}.\n"
         f"Action recommand\u00e9e : {conv.get('recommended_action')}.\n\n"
-        f"Log de convergence (signaux d\u00e9tect\u00e9s, du plus fort au plus faible) :\n{_steps_text(conv)}\n\n"
-        "R\u00e9dige une interpr\u00e9tation professionnelle en fran\u00e7ais (4 \u00e0 6 phrases) qui explique "
-        "pourquoi ce bien pr\u00e9sente une probabilit\u00e9 de vente \u00e9lev\u00e9e, la dynamique entre les "
-        "signaux (triangulation), et l'action \u00e0 mener. Pas de listes \u00e0 puces, un paragraphe dense."
+        f"Log de convergence (signaux d\u00e9tect\u00e9s, du plus fort au plus faible) :\n{_steps_text(conv)}\n"
+        f"{eco}\n"
+        "R\u00e9dige une analyse professionnelle en fran\u00e7ais (5 \u00e0 7 phrases, un paragraphe dense) qui explique "
+        "pourquoi ce bien pr\u00e9sente une probabilit\u00e9 de vente \u00e9lev\u00e9e (dynamique entre signaux / triangulation), "
+        "PUIS l'angle investisseur : potentiel de cr\u00e9ation de valeur (d\u00e9cote, travaux, plus-value) et l'action "
+        "\u00e0 mener. Reste prudent et chiffr\u00e9. Pas de listes \u00e0 puces."
     )
     return await _chat(system, prompt, f"interpret-{parcelle.get('ref_cadastrale')}")
 
