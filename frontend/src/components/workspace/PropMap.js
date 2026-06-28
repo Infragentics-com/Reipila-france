@@ -60,7 +60,7 @@ export default function PropMap({ showLegend = true }) {
         "circle-color": ["step", ["get", "point_count"], "#6366F1", 10, "#F59E0B", 25, "#EF4444"],
         "circle-radius": ["step", ["get", "point_count"], 16, 10, 20, 25, 26], "circle-opacity": 0.92,
         "circle-stroke-width": 2, "circle-stroke-color": "#fff" } });
-      map.addLayer({ id: "cluster-count", type: "symbol", source: "ptsrc", filter: ["has", "point_count"], layout: { "text-field": ["get", "point_count_abbreviated"], "text-font": ["Open Sans Bold"], "text-size": 13 }, paint: { "text-color": "#fff" } });
+      map.addLayer({ id: "cluster-count", type: "symbol", source: "ptsrc", filter: ["has", "point_count"], layout: { "text-field": ["get", "point_count_abbreviated"], "text-font": ["Open Sans Regular"], "text-size": 13 }, paint: { "text-color": "#fff" } });
       map.addLayer({ id: "unclustered", type: "circle", source: "ptsrc", filter: ["!", ["has", "point_count"]], paint: {
         "circle-color": CONV_FILL, "circle-radius": ["interpolate", ["linear"], ["get", "conviction_score"], 30, 5, 90, 9],
         "circle-stroke-width": 2, "circle-stroke-color": "#fff" } });

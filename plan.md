@@ -29,7 +29,9 @@
 ---
 
 ### Phase 2 — V1 App Development (MVP autour du core)
-**Statut : Backend DONE / Frontend IN PROGRESS (P0)**
+**Statut : COMPLETED ✅ (Backend DONE + Frontend MVP livré & testé E2E — 98% global, 0 bug critique)**
+
+> Frontend complété : rebranding reipila, 7 pages (Home/Map/Signals/Opportunities/Pipeline/Market/Settings), drawer persistant + Sheet responsive, MapLibre (CARTO + cadastre IGN + clusters + heatmap), Claude 4.5 (interpret/pitch/memo), panneau d'ingestion. Encodage UTF-8 corrigé. Compte démo demo@reipila.com / demo1234.
 
 1. **Backend skeleton (FastAPI + MongoDB/motor)**
    - ✅ Déjà en place : `server.py`, `database.py`, `ingestion.py`, `open_data.py`, `scoring_engine.py`, `ai_service.py`.

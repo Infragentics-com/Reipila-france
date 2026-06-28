@@ -40,7 +40,7 @@ export default function Topbar() {
   const initials = (user?.name || "U").split(" ").map((s) => s[0]).join("").slice(0, 2).toUpperCase();
 
   return (
-    <header className="h-16 shrink-0 bg-white border-b border-[var(--ps-border)] flex items-center gap-4 px-4">
+    <header className="relative z-50 h-16 shrink-0 bg-white border-b border-[var(--ps-border)] flex items-center gap-4 px-4">
       <div className="flex items-center gap-2 w-[200px]">
         <div className="h-8 w-8 rounded-[10px] bg-[#6366F1] flex items-center justify-center"><Activity className="h-4 w-4 text-white" /></div>
         <div className="font-display text-lg font-bold tracking-tight lowercase">reipila</div>
