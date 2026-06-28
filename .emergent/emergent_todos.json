@@ -1,0 +1,30 @@
+[
+  {
+    "content": "Phase 1: Build test_core.py proving ALL real open APIs + scoring engine + convergence log + Claude interpretation",
+    "status": "completed"
+  },
+  {
+    "content": "Phase 1: Fix until test_core.py passes end-to-end (12/12 PASSED twice, real data, no mock)",
+    "status": "completed"
+  },
+  {
+    "content": "Phase 2: design_agent guidelines for PropSignal v2 UI (forward user's explicit light-premium spec)",
+    "status": "in_progress"
+  },
+  {
+    "content": "Phase 2: Backend — auth (JWT), MongoDB models, scoring module, API clients, ingestion engine, all routes",
+    "status": "pending"
+  },
+  {
+    "content": "Phase 2: Frontend — reproduce reference UI (3-col, MapLibre cadastre tiles, heatmap, markers, intelligence drawer, convergence log), all pages",
+    "status": "pending"
+  },
+  {
+    "content": "Phase 2: End-to-end testing via testing_agent_v3 (all user stories)",
+    "status": "pending"
+  },
+  {
+    "content": "Phase 3: Polish, production hardening, additional features",
+    "status": "pending"
+  }
+]
