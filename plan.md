@@ -1,116 +1,148 @@
-# plan.md
+# plan.md (reipila)
 
 ## 1. Objectives
-- Prove the **core intelligence workflow** works with **real open-data APIs** (no mocks): parcelle → enrichments → signals → **deterministic conviction scoring** → **convergence log** → (if >=70) **Claude narrative**.
-- Replace all CEREMA Tier-2 APIs with **open** data.gouv.fr dataservices (with **Swagger/metadata-verified field mappings**) and capture **rate limits / call budgets** per API.
-- Deliver PropSignal v2 MVP with the **reference UI** (3-column, map-first, cadastre tiles, drawers, logs) and **progressive ingestion** for **58 communes Métropole de Lyon**.
-- Ensure **workflow rigor** (triangulation order, recency rules, scoring math) with automated tests and audit logs.
+- Valider et livrer **reipila** (ex-PropSignal v2) comme **SaaS d’intelligence immobilière map-first** pour la Métropole de Lyon, avec **données réelles** (zéro mock) : parcelle → enrichissements → signaux → **scoring déterministe** → **convergence log** → (si >=70) **interprétation Claude 4.5**.
+- Finaliser un **frontend MVP fonctionnel** (priorité P0) conforme à `/app/design_guidelines.md` : **shell 3 colonnes**, carte MapLibre + cadastre, feed signaux, drawer d’intelligence, actions pipeline/IA.
+- Assurer la **cohérence logique du workflow** (triangulation / scoring / logs) et la **traçabilité** (audit dans convergence log + ingestion_runs).
+- Préparer la **mise en production** (hardening progressif) : performance carto, idempotence ingestion, tests E2E.
 
 ## 2. Implementation Steps
 
 ### Phase 1 — Core POC (Isolation, must pass before app)
+**Statut : DONE** (réalisé et validé sur données réelles)
 1. **API inventory + swagger capture**
-   - For each API (BAN, APICarto Cadastre, GPU/PLU, DPE ADEME, Géorisques, BODACC Opendatasoft, Recherche-Entreprises, GeoAPI INSEE, Tabular API for RNIC + Cartofriches, geo-dvf static files, cquest fallback), store:
-     - base URL, endpoints, auth (none), **rate limits**, pagination, and **field names** (swagger/schema dump).
-   - Produce `api_registry.json` with canonical field mapping → internal normalized schema.
-2. **Build `test_core.py` (real calls, no DB)**
-   - Input: a Lyon address + optional INSEE code.
-   - Steps: INSEE communes(58) → BAN geocode → Cadastre parcel geometry/ref → DPE lookup → DVF (geo-dvf file for commune/year + fallback cquest) → PLU zone → Géorisques risks → Entreprises (SCI/etat) → BODACC events → RNIC lookup (tabular rid) → Cartofriches (best-effort).
-   - Normalize outputs into internal objects: `parcelle`, `enrichments`, `signals[]`.
-3. **Implement deterministic scoring + convergence log module (POC)**
-   - Encode exact weights, recency rules (incl. exceptions), convergence bonuses, context multipliers, thresholds.
-   - Generate convergence steps ordered by `poids_effectif DESC`, with mapped category labels + weight labels.
-   - Add unit assertions in script: hand-verified scoring cases (incl. negative signal) to prevent drift.
-4. **Claude integration POC (Emergent key)**
-   - If computed score >= 70: call Claude (anthropic `claude-sonnet-4-5-20250929`) to produce:
-     - `claude_interpretation` in French (strictly grounded in convergence log inputs).
-5. **Stability work: rate limiting + retries**
-   - Add per-API token-bucket throttles + exponential backoff on 429/5xx.
-   - Log actual call counts per run; confirm matches documented budgets.
+   - CEREMA remplacé par APIs open data autonomes (data.gouv.fr / ADEME / Opendatasoft / IGN/GeoPF / GPU / Géorisques).
+2. **Build `test_core.py` / POC réel**
+   - POC exécuté avec succès, intégrations réelles, sans mocks.
+3. **Scoring déterministe + convergence log**
+   - `scoring_engine.py` implémenté (poids, recency, bonus convergence, context multipliers, classification).
+4. **Claude 4.5 via Emergent**
+   - `ai_service.py` opérationnel (interpret/pitch/memo), sorties en français ancrées dans le log.
+5. **Stabilité (retry / budgets)**
+   - Concurrence et caps implémentés côté ingestion (bornage appels API, enrich concurrency, deep risk cap).
 
-**Phase 1 user stories**
-- As an operator, I can run one script that fetches real data for a Lyon address and returns a parcel + geometry.
-- As an operator, I can see all detected signals with raw inputs and effective weights.
-- As an operator, I can reproduce the exact conviction score and convergence log deterministically.
-- As an operator, I can validate API field mappings from swagger/schema snapshots.
-- As an operator, I can generate a French narrative interpretation for high-conviction parcels.
+**Phase 1 user stories (validées)**
+- Script/ingestion récupère des données réelles Métropole de Lyon, produit parcelles + géométries.
+- Score de conviction reproductible + log de convergence lisible.
+- Interprétation Claude possible et stockable.
 
-### Phase 2 — V1 App Development (MVP around proven core, no auth yet)
+---
+
+### Phase 2 — V1 App Development (MVP autour du core)
+**Statut : Backend DONE / Frontend IN PROGRESS (P0)**
+
 1. **Backend skeleton (FastAPI + MongoDB/motor)**
-   - Collections: communes, prix_marche_ref, parcelles, parcelles_geometries, signals, convergence_logs, signals_pipeline, signal_contacts, acquisitions_pipeline, ingestion_runs.
-   - Modules: `api_clients/`, `normalizers/`, `scoring/`, `ingestion/`, `routes/`.
-2. **Progressive ingestion engine (58 communes)**
-   - Endpoint to enqueue ingestion by commune/bbox; worker loop with concurrency caps.
-   - Dependency order: INSEE→cadastre→BAN→DVF→DPE→entreprises/BODACC→PLU→géorisques→copro/friches(best-effort)→signals→scoring→convergence_logs→pipeline assignment.
-   - Persist `ingestion_runs` with per-API call counts and failures.
-3. **Core read APIs**
-   - `GET /communes` (with market stats placeholders if needed)
-   - `GET /parcelles?bbox=` (GeoJSON for map)
-   - `GET /signals/feed` (Home live feed)
-   - `GET /parcelles/{ref}` (detail: overview, raw inputs, convergence log)
-   - `POST /pipeline/add` + `PATCH /pipeline/status`
-4. **Frontend V1 (reference UI)**
-   - Layout: left nav + market feed, center MapLibre, right intelligence drawer.
-   - Map: cadastre vector tiles + light basemap + clustering + heatmap overlay + layer toggles + filters.
-   - Drawer: tabs (Overview/Signals/Analysis/Comparables/Notes), raw inputs, convergence log, actions.
-5. **1st end-to-end test pass**
-   - Run ingestion for 1–2 communes → verify map shows parcels/signals and drawer data.
+   - ✅ Déjà en place : `server.py`, `database.py`, `ingestion.py`, `open_data.py`, `scoring_engine.py`, `ai_service.py`.
+   - ✅ Collections : users, communes, parcelles, parcelles_geometries, signals, convergence_logs, pipeline, pipeline_contacts, acquisitions, ingestion_runs.
+   - ✅ Endpoints clés opérationnels :
+     - Auth: `/api/auth/signup`, `/api/auth/login`, `/api/auth/me`
+     - Map: `/api/map/parcelles`
+     - Feed: `/api/feed`
+     - Parcelle: `/api/parcelles/{ref}`
+     - Signals: `/api/signals`
+     - Opportunities: `/api/opportunities`
+     - Market: `/api/market`
+     - Pipeline: `/api/pipeline` (+ patch/delete/contacts)
+     - AI: `/api/ai/interpret`, `/api/ai/pitch`, `/api/ai/memo`
+     - Ingestion: `/api/ingest`, `/api/ingest/runs`, `/api/ingest/status`
+   - ✅ Données réelles confirmées : 185 parcelles, 754 signaux, 67 communes (incl. arrondissements Lyon), cadastre geometries ok.
 
-**Phase 2 user stories**
-- As a user, I can open the Map and see cadastre parcels with a conviction heatmap.
-- As a user, I can filter signals (Seller Signals, Conviction 70%+) and see markers update.
-- As a user, I can click a parcel and read raw signal inputs + convergence log steps.
-- As a user, I can add a high-conviction parcel to the Execution Flow.
-- As a user, I can monitor ingestion runs and see how many API calls were made.
+2. **Progressive ingestion engine (58 communes Métropole de Lyon)**
+   - ✅ En place et bornée : DVF → SCI → BODACC → enrichment (cadastre/DPE/PLU/risques) → scoring → persist.
+   - 🔜 Ajustements futurs (P1/P2) : ingestion full 58 communes + scheduling + idempotence renforcée.
 
-### Phase 3 — Auth + AI features + Opportunities
+3. **Frontend V1 (référence UI map-first)**
+   **Statut : Fondations DONE, compilation cassée (pages manquantes)**
+   - ✅ Déjà en place : AuthContext, WorkspaceContext, API client (axios + bearer), AppShell, Sidebar, Topbar (search `/api/search`), PropMap (MapLibre + heatmap + clustering + calques raster cadastre IGN), IntelligenceDrawer (tabs + pipeline + IA), Login.
+   - ❌ Bloquant actuel : `App.js` importe 7 pages inexistantes → webpack compile errors.
+
+   **Travaux P0 à réaliser (Frontend MVP complet)**
+   3.1 **Rebranding PropSignal → reipila**
+   - Mettre à jour : libellés Topbar/Login, `index.html` title/description, éventuels noms dans UI.
+   - Compte démo : passer de `demo@propsignal.app` à `demo@reipila.com` (et aligner backend startup seed).
+   - Harmoniser storage token key si nécessaire (actuel `ps_token` — option : migrer vers `rp_token`, sinon conserver par compatibilité).
+
+   3.2 **Créer les 7 pages manquantes (câblées aux endpoints réels)**
+   - `Home` : vue principale **3 colonnes** (Left panel feed + Map + Right drawer). Utilise `/api/stats/overview`, `/api/feed`, `/api/map/parcelles`.
+   - `MapPage` : carte plein écran + drawer persistante, filtres map.
+   - `SignalsPage` : liste dense (tri par conviction) via `/api/signals` + sélection ouvre drawer (Sheet sur petits écrans).
+   - `OpportunitiesPage` : liste via `/api/opportunities`, action “Générer mémo” (IA memo) + accès parcelle.
+   - `PipelinePage` : “Execution Flow” (kanban) via `/api/pipeline`, update status via `PATCH /api/pipeline/{id}`, contacts.
+   - `MarketPage` : analytics via `/api/market` + sparklines (Recharts) conformes guidelines.
+   - `SettingsPage` : profil + **panneau ingestion** (déclencher `/api/ingest`, afficher `/api/ingest/runs` + `/api/ingest/status`).
+
+   3.3 **Composants partagés / responsive**
+   - Ajouter `useMediaQuery` (ou hook équivalent) pour gérer drawer en mode Sheet sur <lg.
+   - Créer composants UI “denses” conformes aux guidelines :
+     - `StatTiles` (3 tuiles en haut du panneau gauche)
+     - `LiveFeed` (intelligence blocks, severity tags, chips)
+     - `IntelligencePanel` wrapper : Drawer desktop + Sheet mobile.
+
+   3.4 **Adapter `IntelligenceDrawer`**
+   - Ajouter props (ex: `hideClose`, `embedded`, `onClose`) pour usage en panneau persistant vs Sheet.
+   - Aligner champs “Signals” tab avec structure réelle backend (ex: `type_signal`, `categorie_signal`, `poids_effectif`).
+
+   3.5 **Vérification compilation + UX smoke test**
+   - Corriger imports `@/pages/*`.
+   - Démarrer le frontend et vérifier absence d’erreurs console.
+   - Vérifier : login démo → home → sélection parcelle sur map → drawer (overview/signals/log) → add pipeline → IA interpret.
+
+4. **1st end-to-end test pass**
+   - Exécuter une ingestion sur 1–2 communes supplémentaires via Settings.
+   - Vérifier map (tuiles CARTO + cadastre IGN) + GeoJSON parcelles + sélection + drawer.
+   - Appeler `testing_agent_v3` (frontend + backend E2E) après UI complète.
+
+**Phase 2 user stories (cible MVP)**
+- L’utilisateur se connecte (compte démo reipila) et accède à Home map-first.
+- La carte affiche heatmap + clusters + cadastre, et les parcelles issues du backend réel.
+- Un clic sur une parcelle ouvre le drawer avec raw inputs + convergence log.
+- L’utilisateur peut ajouter une parcelle au Pipeline et générer une interprétation/pitch/mémo.
+- L’utilisateur peut déclencher l’ingestion d’une commune depuis Settings et suivre les runs.
+
+---
+
+### Phase 3 — Auth + IA + Opportunités (extension)
+**Statut : majoritairement DONE côté backend, à “productiser” côté UI**
 1. **Auth (email+password, JWT)**
-   - Signup/login, password hashing, protected endpoints.
-2. **Claude features in-app (streaming)**
-   - `POST /ai/interpret` (score>=70) and store in `convergence_logs`.
-   - `POST /ai/pitch` for pipeline item.
-   - `POST /ai/memo` for acquisitions.
+   - ✅ Déjà en place.
+   - 🔜 (P1) Ajuster warning bcrypt/passlib si nécessaire (monitoring), durcir config prod.
+2. **Claude features in-app**
+   - ✅ Endpoints existants.
+   - 🔜 (P1) UX : états de chargement, garde-fous (score>=70 si souhaité), persistance/affichage memo.
 3. **Opportunities/Acquisitions MVP**
-   - Create `acquisitions_pipeline` entries from detected market discount / DPE renovation / land division heuristics.
+   - ✅ `acquisitions` déjà alimenté par ingestion.
+   - 🔜 (P1) UI Opportunities + drill-down vers parcelle.
 4. **Pipeline UX**
-   - Execution Flow board/list, contact logging, next action scheduling.
+   - ✅ Endpoints existants.
+   - 🔜 (P1) UI kanban + contacts timeline.
 5. **2nd end-to-end test pass**
-   - Full flow with auth: login → map → drawer → AI interpret → add to pipeline → contact log.
+   - Login → map → drawer → IA → pipeline → contact log.
 
-**Phase 3 user stories**
-- As a user, I can sign up and my data is isolated to my account.
-- As a user, I can request an AI interpretation that is grounded in the convergence log.
-- As a user, I can generate an approach pitch for contacting an owner.
-- As a user, I can track my execution stages and log outreach attempts.
-- As a user, I can review Alpha Opportunities and generate an investment memo.
+---
 
 ### Phase 4 — Hardening (production readiness)
 1. **Workflow correctness suite**
-   - Golden tests for scoring thresholds/bonuses/recency + regression fixtures from real parcels.
+   - Golden tests scoring + fixtures réelles (régression) + tests ingestion idempotence.
 2. **API governance**
-   - Centralized throttling, caching (per parcelle + per day), circuit breakers.
+   - Caching (par parcelle/jour), circuit breakers, budgets par API, backoff.
 3. **Data quality + observability**
-   - Structured logs, ingestion run dashboards, alerting on API schema drift.
-4. **Performance**
-   - Mongo 2dsphere indexes, bbox queries, payload shaping for map.
+   - Dash ingestion_runs, alerting schema drift, logs structurés.
+4. **Performance carto**
+   - Optimiser requêtes bbox + payload shaping; limiter features; options vector tiles future.
 5. **Final testing**
-   - Full Metro Lyon ingestion over time; verify UI remains responsive.
-
-**Phase 4 user stories**
-- As an admin/operator, I can detect API schema changes before they break workflows.
-- As a user, I can load the map quickly even with large data volumes.
-- As a user, I can trust the conviction score because it matches documented rules.
-- As a user, I can see when signals were detected and what changed since last run.
-- As an operator, I can re-run ingestion safely without duplications.
+   - Ingestion progressive des 58 communes + validation UI perf.
 
 ## 3. Next Actions
-1. Build `api_registry.json` and collect swagger/schema snapshots for each selected open API.
-2. Implement `test_core.py` and iterate until **all** integrations succeed reliably.
-3. Lock scoring engine + convergence log with golden tests.
-4. Start Phase 2 app build (backend+frontend) using the proven modules.
+1. **P0** Créer les 7 pages manquantes + câbler Home/Map/Signals aux endpoints réels (corriger build).
+2. **P0** Rebranding en **reipila** + compte démo `demo@reipila.com` (backend seed + UI par défaut).
+3. **P0** Settings : panneau ingestion + runs/status.
+4. **P0** Smoke test manuel complet (login → map → drawer → pipeline).
+5. **P0** Lancer `testing_agent_v3` pour tests E2E (frontend + backend).
+6. **P1** MarketPage + Pipeline kanban + Opportunities UI approfondie.
+7. **P1/P2** Hardening : cache/rate limits, idempotence, perf carto, suite de régression.
 
 ## 4. Success Criteria
-- Phase 1: `test_core.py` succeeds 5x consecutively (different inputs) with real APIs; prints call counts and respects rate limits; conviction score matches expected unit cases.
-- Phase 2: Map loads with cadastre tiles + parcels/signals; clicking a parcel shows raw inputs + convergence log; ingestion runs recorded.
-- Phase 3: Auth works; Claude streaming works; AI outputs stored and visible; pipeline and acquisitions flows usable.
-- Phase 4: Regression suite passes; ingestion is idempotent; performance acceptable with growing dataset.
+- Phase 1: ✅ POC et ingestion réelles validées (aucun mock), scoring déterministe, Claude OK.
+- Phase 2: Frontend compile; Home/Map/Signals fonctionnels; cadastre + heatmap + clusters; drawer complet; ingestion pilotable; pipeline utilisable.
+- Phase 3: IA intégrée proprement (UX + persistance), opportunités et pipeline opérationnels avec actions.
+- Phase 4: Suite de régression passe; ingestion idempotente; perf map acceptable à l’échelle Métropole de Lyon; observabilité ingestion stable.
