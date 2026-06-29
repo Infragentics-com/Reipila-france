@@ -39,7 +39,7 @@ Le produit croise des données publiques (DVF, DPE, BODACC, PLU, Géorisques, Ca
 > **"Qui va vendre avant de le savoir ?"**
 > **"Quel bien vaut plus que son prix affiché ?"**
 
-La réponse : un **Conviction Score déterministe**, un **Signal Convergence Log traçable**, et si le score ≥ 70, une **interprétation Claude** — pitch téléphonique ou mémo d'apport investisseur.
+La réponse : un **Conviction Score déterministe**, un **Signal Convergence Log traçable**, et si le score ≥ 70, une **interprétation Claude** — pitch téléphonique - Rédaction d'un courrier ou mémo d'apport investisseur.
 
 ---
 
@@ -97,7 +97,7 @@ reipila/
 ├── tests/                      # Suite de tests E2E
 ├── plan.md                     # Roadmap et statut par phase
 ├── design_guidelines.md        # Design system complet (JSON)
-└── backend_test.py             # Tests API (demo@reipila.com / demo1234)
+└── backend_test.py             # Tests API 
 ```
 
 ---
@@ -364,11 +364,7 @@ yarn start
 # → http://localhost:3000
 ```
 
-### Compte démo
 
-```
-Email    : demo@reipila.com
-Password : demo1234
 ```
 
 ---
